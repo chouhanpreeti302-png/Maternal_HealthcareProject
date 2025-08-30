@@ -1,88 +1,234 @@
 import streamlit as st
+from streamlit_option_menu import option_menu
+import pickle
+import warnings
+import pandas as pd
+import plotly.express as px
+from io import StringIO
+import requests
 import numpy as np
-import joblib
-# Import the new dashboard class from your other file
-from codebase.dashboard_graphs import ANCDashboard
+from sklearn.preprocessing import StandardScaler
 
-# --- PAGE 1: RISK PREDICTION TOOL ---
-def show_prediction_page():
-    st.title('Maternal Health Risk Predictor 🤰')
-    st.write(
-        "This tool predicts maternal health risk based on patient data. "
-        "Please enter the patient's details in the sidebar to get a prediction."
-    )
+from codebase.dashboard_graphs import MaternalHealthDashboard
 
-    # --- Load The Trained Models ---
-    try:
-        scaler = joblib.load('model/scaler_maternal_model.sav')
-        model = joblib.load('model/finalized_maternal_model.sav')
-    except FileNotFoundError:
-        st.error("Model files not found. Please ensure 'scaler_maternal_model.sav' and 'finalized_maternal_model.sav' are in the 'model' folder.")
-        return
+maternal_model = pickle.load(open("model/lgbm_maternal_model.pkl",'rb'))
+fetal_model = pickle.load(open("model/lgbm_fetal_health_model.pkl",'rb'))
 
-    # --- Sidebar for User Input ---
-    st.sidebar.header('Enter Patient Data for Prediction')
+# sidebar for navigation
+with st.sidebar:
+    st.title("MedPredict")
+    st.write("Welcome to the MedPredict")
+    st.write(" Choose an option from the menu below to get started:")
 
-    age = st.sidebar.slider('Age', 20, 80, 30)
-    systolic_bp = st.sidebar.slider('Systolic Blood Pressure (mmHg)', 90, 180, 120)
-    diastolic_bp = st.sidebar.slider('Diastolic Blood Pressure (mmHg)', 60, 120, 80)
-    bs = st.sidebar.slider('Blood Sugar (mmol/L)', 6.0, 18.0, 7.8, 0.1)
-    body_temp = st.sidebar.slider('Body Temperature (°F)', 96.0, 104.0, 98.6, 0.1)
-    heart_rate = st.sidebar.slider('Heart Rate (bpm)', 60, 100, 70)
+    selected = option_menu('MedPredict',
+                          
+                          ['About us',
+                            'Pregnancy Risk Prediction',
+                           'Fetal Health Prediction',
+                           'Dashboard'],
+                          icons=['chat-square-text','hospital','capsule-pill','clipboard-data'],
+                          default_index=0)
     
-    # --- Prediction Logic ---
-    if st.sidebar.button('Predict Health Risk'):
-        # Create a numpy array from the inputs
-        input_features = np.array([[age, systolic_bp, diastolic_bp, bs, body_temp, heart_rate]])
+if (selected == 'About us'):
+    
+    st.title("Welcome to MedPredict")
+    st.write("At MedPredict, our mission is to revolutionize healthcare by offering innovative solutions through predictive analysis. "
+         "Our platform is specifically designed to address the intricate aspects of maternal and fetal health, providing accurate "
+         "predictions and proactive risk management.")
+    
+    col1, col2= st.columns(2)
+    with col1:
+        # Section 1: Pregnancy Risk Prediction
+        st.header("1. Pregnancy Risk Prediction")
+        st.write("Our Pregnancy Risk Prediction feature utilizes advanced algorithms to analyze various parameters, including age, "
+                "body sugar levels, blood pressure, and more. By processing this information, we provide accurate predictions of "
+                "potential risks during pregnancy.")
+        # Add an image for Pregnancy Risk Prediction
+        st.image("graphics/pregnancy_risk_image.jpg", caption="Pregnancy Risk Prediction", use_column_width=True)
+    with col2:
+        # Section 2: Fetal Health Prediction
+        st.header("2. Fetal Health Prediction")
+        st.write("Fetal Health Prediction is a crucial aspect of our system. We leverage cutting-edge technology to assess the "
+                "health status of the fetus. Through a comprehensive analysis of factors such as ultrasound data, maternal health, "
+                "and genetic factors, we deliver insights into the well-being of the unborn child.")
+        # Add an image for Fetal Health Prediction
+        st.image("graphics/fetal_health_image.jpg", caption="Fetal Health Prediction", use_column_width=True)
+
+    # Section 3: Dashboard
+    st.header("3. Dashboard")
+    st.write("Our Dashboard provides a user-friendly interface for monitoring and managing health data. It offers a holistic "
+            "view of predictive analyses, allowing healthcare professionals and users to make informed decisions. The Dashboard "
+            "is designed for ease of use and accessibility.")
+    
+    # Closing note
+    st.write("Thank you for choosing E-Doctor. We are committed to advancing healthcare through technology and predictive analytics. "
+            "Feel free to explore our features and take advantage of the insights we provide.")
+
+if (selected == 'Pregnancy Risk Prediction'):
+    
+    # page title
+    st.title('Pregnancy Risk Prediction')
+    content = "Predicting the risk in pregnancy involves analyzing several parameters, including age, blood sugar levels, blood pressure, and other relevant factors. By evaluating these parameters, we can assess potential risks and make informed predictions regarding the pregnancy's health"
+    st.markdown(f"<div style='white-space: pre-wrap;'><b>{content}</b></div></br>", unsafe_allow_html=True)
+    
+    # getting the input data from the user
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        age = st.text_input('Age of the Person', key = "age")
         
-        # Scale the user input
-        scaled_features = scaler.transform(input_features)
+    with col2:
+        diastolicBP = st.text_input('diastolicBP in mmHg')
+    
+    with col3:
+        BS = st.text_input('Blood glucose in mmol/L')
+    
+    with col1:
+        bodyTemp = st.text_input('Body Temperature in Celsius')
+
+    with col2:
+        heartRate = st.text_input('Heart rate in beats per minute')
+    scale_X = pickle.load(open('model/scaler_maternal_model.sav', 'rb'))
+    riskLevel=""
+    predicted_risk = [0] 
+    # creating a button for Prediction
+    with col1:
+        if st.button('Predict Pregnancy Risk'):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                #predicted_risk = maternal_model.predict([[age, diastolicBP, BS, bodyTemp, heartRate]])
+                input_data = np.array([[age, diastolicBP, BS, bodyTemp, heartRate]])
         
-        # Make a prediction
-        prediction = model.predict(scaled_features)
+                input_scaled = scale_X.transform(input_data)
+                predicted_risk = maternal_model.predict(input_scaled)
+            # st
+            st.subheader("Risk Level:")
+            if predicted_risk[0] == 0:
+                st.markdown('<bold><p style="font-weight: bold; font-size: 20px; color: green;">Low Risk</p></bold>', unsafe_allow_html=True)
+            elif predicted_risk[0] == 1:
+                st.markdown('<bold><p style="font-weight: bold; font-size: 20px; color: orange;">Medium Risk</p></Bold>', unsafe_allow_html=True)
+            else:
+                st.markdown('<bold><p style="font-weight: bold; font-size: 20px; color: red;">High Risk</p><bold>', unsafe_allow_html=True)
+    with col2:
+        if st.button("Clear"): 
+            st.rerun()
+
+if (selected == 'Fetal Health Prediction'):
+    
+    # page title
+    st.title('Fetal Health Prediction')
+    
+    content = "Cardiotocograms (CTGs) are a simple and cost accessible option to assess fetal health, allowing healthcare professionals to take action in order to prevent child and maternal mortality"
+    st.markdown(f"<div style='white-space: pre-wrap;'><b>{content}</b></div></br>", unsafe_allow_html=True)
+    # getting the input data from the user
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        BaselineValue = st.text_input('Baseline Value')
         
-        # Display the result
-        st.subheader('Prediction Result')
-        risk_levels = {0: 'Low Risk', 1: 'Mid Risk', 2: 'High Risk'}
-        predicted_risk = risk_levels.get(prediction[0], 'Unknown Risk')
+    with col2:
+        Accelerations = st.text_input('Accelerations')
+    
+    with col3:
+        fetal_movement = st.text_input('Fetal Movement')
+    
+    with col1:
+        uterine_contractions = st.text_input('Uterine Contractions')
+
+    with col2:
+        light_decelerations = st.text_input('Light Decelerations')
+    
+    with col3:
+        severe_decelerations = st.text_input('Severe Decelerations')
+
+    with col1:
+        prolongued_decelerations = st.text_input('Prolongued Decelerations')
         
-        if prediction[0] == 2: # High Risk
-            st.error(f'The predicted maternal health risk is: **{predicted_risk}**')
-        elif prediction[0] == 1: # Mid Risk
-            st.warning(f'The predicted maternal health risk is: **{predicted_risk}**')
-        else: # Low Risk
-            st.success(f'The predicted maternal health risk is: **{predicted_risk}**')
+    with col2:
+        abnormal_short_term_variability = st.text_input('Abnormal Short Term Variability')
+    
+    with col3:
+        mean_value_of_short_term_variability = st.text_input('Mean Value Of Short Term Variability')
+    
+    with col1:
+        percentage_of_time_with_abnormal_long_term_variability = st.text_input('Percentage Of Time With ALTV')
 
+    with col2:
+        mean_value_of_long_term_variability = st.text_input('Mean Value Long Term Variability')
+    
+    with col3:
+        histogram_width = st.text_input('Histogram Width')
 
-# --- PAGE 2: NATIONAL HEALTH DASHBOARD ---
-def show_dashboard_page():
-    st.title("National Health Dashboard: Ante Natal Care (ANC) 📊")
-    st.markdown("This dashboard visualizes data on Ante Natal Care across India, based on government health reports.")
-
-    # --- Your API Key and Endpoint for the Dashboard ---
-    API_KEY = "579b464db66ec23bdd000001841e8421dcf54a8b43cdb5add832a844"
-    API_ENDPOINT = f"https://api.data.gov.in/resource/5ae2dbe0-849d-4e20-91ff-1e2905934d7e?api-key={API_KEY}&format=csv"
-
-    # --- Instantiate and run the dashboard ---
-    dashboard = ANCDashboard(API_ENDPOINT)
-
-    if dashboard.anc_data is not None:
-        # Display a year selection for the performance chart
-        year_to_show = st.selectbox("Select Year for Performance Data", options=['2019-20', '2018-19'], index=0)
+    with col1:
+        histogram_min = st.text_input('Histogram Min')
         
-        dashboard.create_anc_performance_barchart(year=year_to_show)
-        st.divider()
-        dashboard.create_registration_trend_chart()
-    else:
-        st.warning("Could not load dashboard data. Please check the API connection.")
+    with col2:
+        histogram_max = st.text_input('Histogram Max')
+    
+    with col3:
+        histogram_number_of_peaks = st.text_input('Histogram Number Of Peaks')
+    
+    with col1:
+        histogram_number_of_zeroes = st.text_input('Histogram Number Of Zeroes')
 
+    with col2:
+        histogram_mode = st.text_input('Histogram Mode')
+    
+    with col3:
+        histogram_mean = st.text_input('Histogram Mean')
+    
+    with col1:
+        histogram_median = st.text_input('Histogram Median')
 
-# --- MAIN APP NAVIGATION ---
-st.set_page_config(layout="wide")
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ("Risk Prediction", "National Health Dashboard"))
+    with col2:
+        histogram_variance = st.text_input('Histogram Variance')
+    
+    with col3:
+        histogram_tendency = st.text_input('Histogram Tendency')
+    
+    # creating a button for Prediction
+    st.markdown('</br>', unsafe_allow_html=True)
+    with col1:
+        if st.button('Predict Pregnancy Risk'):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                predicted_risk = fetal_model.predict([[BaselineValue, Accelerations, fetal_movement,
+       uterine_contractions, light_decelerations, severe_decelerations,
+       prolongued_decelerations, abnormal_short_term_variability,
+       mean_value_of_short_term_variability,
+       percentage_of_time_with_abnormal_long_term_variability,
+       mean_value_of_long_term_variability, histogram_width,
+       histogram_min, histogram_max, histogram_number_of_peaks,
+       histogram_number_of_zeroes, histogram_mode, histogram_mean,
+       histogram_median, histogram_variance, histogram_tendency]])
+            # st.subheader("Risk Level:")
+            st.markdown('</br>', unsafe_allow_html=True)
+            if predicted_risk[0] == 0:
+                st.markdown('<bold><p style="font-weight: bold; font-size: 20px; color: green;">Result  Comes to be  Normal</p></bold>', unsafe_allow_html=True)
+            elif predicted_risk[0] == 1:
+                st.markdown('<bold><p style="font-weight: bold; font-size: 20px; color: orange;">Result  Comes to be  Suspect</p></Bold>', unsafe_allow_html=True)
+            else:
+                st.markdown('<bold><p style="font-weight: bold; font-size: 20px; color: red;">Result  Comes to be  Pathological</p><bold>', unsafe_allow_html=True)
+    with col2:
+        if st.button("Clear"): 
+            st.rerun()
 
-if page == "Risk Prediction":
-    show_prediction_page()
-elif page == "National Health Dashboard":
-    show_dashboard_page()
+if (selected == "Dashboard"):
+    api_key = "579b464db66ec23bdd000001841e8421dcf54a8b43cdb5add832a844"
+    api_endpoint = api_endpoint= f"https://api.data.gov.in/resource/5ae2dbe0-849d-4e20-91ff-1e2905934d7e?api-key=579b464db66ec23bdd000001841e8421dcf54a8b43cdb5add832a844&format=csv"
+    st.header("Dashboard")
+    content = "Our interactive dashboard offers a comprehensive visual representation of maternal health achievements across diverse regions. The featured chart provides insights into the performance of each region concerning institutional deliveries compared to their assessed needs. It serves as a dynamic tool for assessing healthcare effectiveness, allowing users to quickly gauge the success of maternal health initiatives."
+    st.markdown(f"<div style='white-space: pre-wrap;'><b>{content}</b></div></br>", unsafe_allow_html=True)
+
+    dashboard = MaternalHealthDashboard(api_endpoint)
+    dashboard.create_bubble_chart()
+    with st.expander("Show More"):
+    # Display a portion of the data
+        content = dashboard.get_bubble_chart_data()
+        st.markdown(f"<div style='white-space: pre-wrap;'><b>{content}</b></div>", unsafe_allow_html=True)
+
+    dashboard.create_pie_chart()
+    with st.expander("Show More"):
+    # Display a portion of the data
+        content = dashboard.get_pie_graph_data()
+        st.markdown(f"<div style='white-space: pre-wrap;'><b>{content}</b></div>", unsafe_allow_html=True)
