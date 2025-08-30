@@ -4,108 +4,108 @@ import plotly.express as px
 from io import StringIO
 import requests
 
-class ANCDashboard:
+class MaternalHealthDashboard:
     def __init__(self, api_endpoint):
         self.api_endpoint = api_endpoint
-        # Fetch and clean the data immediately
-        self.anc_data = self._fetch_and_clean_data()
+        self.maternal_health_data = self.fetch_data()
 
-    def _fetch_and_clean_data(self):
-        """Fetches data from the API and performs initial cleaning."""
+    def fetch_data(self):
         try:
             response = requests.get(self.api_endpoint)
             if response.status_code == 200:
-                df = pd.read_csv(StringIO(response.text))
-                # Filter out the summary 'All India' row to only show individual states/UTs
-                df = df[df['State/UT'] != 'All India'].copy()
-                return df
+                data = pd.read_csv(StringIO(response.text))
+                return data
             else:
                 st.error(f"Failed to fetch data. Status code: {response.status_code}")
                 return None
         except requests.exceptions.RequestException as e:
             st.error(f"Error during API request: {e}")
             return None
-        except Exception as e:
-            st.error(f"An error occurred while processing the data: {e}")
-            return None
 
-    def create_anc_performance_barchart(self, year='2019-20'):
-        """Creates a bar chart showing the percentage of women with 4+ ANC check-ups."""
-        if self.anc_data is None:
-            return
+    def drop_all_india(self, df):
+        return df[df["State/UT"] != "All India"]
 
-        st.header(f'Performance: % of Women with 4+ ANC Check-ups ({year})')
-        st.markdown("This chart ranks states by the percentage of registered pregnant women who received four or more Ante Natal Care check-ups.")
-
-        # Define the exact column names from your new dataset
-        performance_col = 'Percentage of women with 4 or more ANC check-ups'
-        year_col = 'Year'
-        state_col = 'State/UT'
-        
-        # Filter data for the selected year
-        df_year = self.anc_data[self.anc_data[year_col] == year].copy()
-        
-        # Convert performance column to numbers, handling any errors
-        df_year[performance_col] = pd.to_numeric(df_year[performance_col], errors='coerce')
-        df_year = df_year.dropna(subset=[performance_col])
-        
-        # Sort data for better visualization
-        df_sorted = df_year.sort_values(by=performance_col, ascending=False)
-
-        fig = px.bar(
-            df_sorted,
-            x=state_col,
-            y=performance_col,
-            title=f'ANC Check-up Performance by State/UT for {year}',
-            labels={performance_col: '% of Women with 4+ ANC Check-ups', state_col: 'State / Union Territory'},
-            color=performance_col,
-            color_continuous_scale=px.colors.sequential.Viridis
+    def create_bubble_chart(self):
+        df = self.drop_all_india(self.maternal_health_data)
+        st.subheader("Bubble Chart provides a visual representation of how well different regions have performed in achieving institutional deliveries compared to their assessed needs")
+        fig = px.scatter(
+            df,
+            x="Need Assessed (2019-20) - (A)",
+            y="Achievement during April to March - Total ANC Registered - (2019-20) - (B)",
+            size="% Achievement (Total ANC Registered) of need assessed (2019-20) - (G=(B/A)*100)",
+            color="State/UT",
+            hover_name="State/UT",
+            labels={
+                "Need Assessed (2019-20) - (A)": "Need Assessed",
+                "Achievement during April to March - Total ANC Registered - (2019-20) - (B)": "Achievement",
+                "% Achievement (Total ANC Registered) of need assessed (2019-20) - (G=(B/A)*100)": "% Achievement",
+            },
         )
-        fig.update_layout(xaxis={'categoryorder':'total descending'})
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig)
 
-    def create_registration_trend_chart(self):
-        """Creates a grouped bar chart comparing total ANC registrations over two years."""
-        if self.anc_data is None:
-            return
+    def create_pie_chart(self):
+        st.subheader("Visualize the proportion of institutional deliveries across different states/union territories (UTs) during the specified period (April to March 2019-20)")
+        df = self.drop_all_india(self.maternal_health_data)
 
-        st.header('Trend: Total ANC Registrations (2018-19 vs 2019-20)')
-        st.markdown("This chart compares the total number of Ante Natal Care registrations for each state across two consecutive years.")
-
-        # Define the exact column names from your new dataset
-        registration_col = 'Total number of pregnant women registered for ANC'
-        year_col = 'Year'
-        state_col = 'State/UT'
-
-        # Convert registration column to numbers
-        df_copy = self.anc_data.copy()
-        df_copy[registration_col] = pd.to_numeric(df_copy[registration_col], errors='coerce')
-        df_copy = df_copy.dropna(subset=[registration_col])
-
-        fig = px.bar(
-            df_copy,
-            x=state_col,
-            y=registration_col,
-            color=year_col, # This creates the grouping
-            barmode='group', # This places bars side-by-side
-            title='ANC Registrations: 2018-19 vs 2019-20',
-            labels={registration_col: 'Total ANC Registrations', state_col: 'State / Union Territory'}
+        fig = px.pie(
+            df,
+            names="State/UT",
+            values="Achievement during April to March - Total ANC Checkups - (2019-20) - (B)",
+            labels={"Achievement during April to March - Total ANC Checkups - (2019-20) - (B)": "Ante Natal Care (ANC)"}
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig)
 
-# This part is for testing the script directly.
-# You will call these functions from your main.py file.
+    def get_bubble_chart_data(self):
+        content = """
+Bubble Chart provides a visual representation of how well different regions have performed in achieving antenatal care compared to their assessed needs. 
+
+The Bubble Chart presented in the example is visualizing maternal health data, particularly focusing on the achievement of antenatal care in different states or union territories during the period of April to March for the year 2019-20. Let's break down what the chart is showing:
+
+
+1: X-axis (horizontal axis): Need Assessed (2019-20) - (A)
+
+This axis represents the assessed needs for antenatal care in different states or union territories. Each point on the X-axis corresponds to a specific region, and the position along the axis indicates the magnitude of the assessed needs.
+
+2: Y-axis (vertical axis): Achievement during April to March - Total Antenatal Care- (2019-20) - (B)
+
+The Y-axis represents the actual achievement in terms of the number of antenatal care during the specified period (April to March) in the year 2019-20. Each point on the Y-axis corresponds to a specific region, and the position along the axis indicates the magnitude of the achieved antenatal care.
+
+3: Bubble Size: % Achvt of need assessed (2019-20) - (E=(B/A)100)
+
+The size of each bubble is determined by the percentage achievement of the assessed needs, calculated as % Achvt = (B/A) * 100. Larger bubbles indicate a higher percentage of achievement compared to the assessed needs, suggesting a better performance in delivering antenatal healthcare.
+
+4: Color: State/UT
+
+Each bubble is color-coded based on the respective state or union territory it represents. Different colors distinguish between regions, making it easy to identify and compare data points for different states or union territories.
+
+5: Hover Name: State/UT
+
+Hovering over a bubble reveals additional information, such as the name of the state or union territory it represents. This interactive feature allows users to explore specific data points on the chart.
+"""
+        return content
+    
+    def get_pie_graph_data(self):
+        content = """
+visualize the proportion of antenatal care across different states/union territories (UTs) during the specified period (April to March 2019-20). Let's break down the components of the graph and its interpretation:
+
+Key Components:
+Slices of the Pie:
+
+Each slice of the pie represents a specific state or UT.
+Size of Slices:
+
+The size of each slice corresponds to the proportion of antenatal care achieved during April to March 2019-20 for the respective state or UT.
+Hover Information:
+
+Hovering over a slice provides additional information, such as the name of the state/UT and the exact proportion of antenatal care."""
+        return content
+
+
 if __name__ == "__main__":
-    st.set_page_config(layout="wide")
-    st.title("Maternal Health Dashboard (ANC Data)")
+    api_key = "579b464db66ec23bdd000001841e8421dcf54a8b43cdb5add832a844"
+    api_endpoint = api_endpoint= f"https://api.data.gov.in/resource/5ae2dbe0-849d-4e20-91ff-1e2905934d7e?api-key=579b464db66ec23bdd000001841e8421dcf54a8b43cdb5add832a844&format=csv"
+    dashboard = MaternalHealthDashboard(api_endpoint)
 
-    # Your new API Key and Endpoint
-    API_KEY = "579b464db66ec23bdd000001841e8421dcf54a8b43cdb5add832a844"
-    API_ENDPOINT = f"https://api.data.gov.in/resource/5ae2dbe0-849d-4e20-91ff-1e2905934d7e?api-key={API_KEY}&format=csv"
-
-    dashboard = ANCDashboard(API_ENDPOINT)
-
-    if dashboard.anc_data is not None:
-        dashboard.create_anc_performance_barchart(year='2019-20')
-        st.divider()
-        dashboard.create_registration_trend_chart()
+    if dashboard.maternal_health_data is not None:
+        dashboard.create_bubble_chart()
+        dashboard.create_stacked_bar_chart()
